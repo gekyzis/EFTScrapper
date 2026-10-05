@@ -26,9 +26,15 @@ If you’re hitting 403s, try running it locally. Cloudflare/Fandom often blocks
 
 ## Running it locally
 
+You need Python installed on your machine. You can install it via PowerShell using:
+```bash
+winget install Python.Python.3.14
+```
+or download it directly from: [python.org](https://www.python.org/downloads/)
+
 Download server_maps.py & eft-task-guide.html locally, e.g. to Downloads\EFTSCRAPPER. Browse to this folder and run:
 ```bash
-python3 server_maps.py
+python server_maps.py
 ```
 
 Then open **http://localhost:8000/**. The first run installs `curl_cffi`
