@@ -1,4 +1,4 @@
-# EFT Task Planner
+# EFT Task Planner -> https://eftscrapper-production.up.railway.app/
 
 A small, self-contained web app that looks up Escape From Tarkov task/quest
 names and shows, on one page: the task's objectives, a tactical guide, and
