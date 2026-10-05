@@ -1,4 +1,8 @@
-# EFT Task Planner -> https://eftscrapper-production.up.railway.app/
+# EFT Task Planner 
+View it here-> https://eftscrapper-production.up.railway.app/
+If you’re hitting 403s, try running it locally. Cloudflare/Fandom often blocks anything coming from cloud‑host IP ranges, while normal home IPs usually get through just fine.
+<img width="903" height="504" alt="image" src="https://github.com/user-attachments/assets/f16453b3-fc11-4d89-87ae-6b270db59c54" />
+
 
 A small, self-contained web app that looks up Escape From Tarkov task/quest
 names and shows, on one page: the task's objectives, a tactical guide, and
@@ -14,6 +18,9 @@ Data comes from two live sources, fetched server-side on each lookup:
 
 No database, no build step, no framework — one Python file serving the API
 and the static page.
+
+<img width="637" height="1020" alt="image" src="https://github.com/user-attachments/assets/ae81971f-9fda-4efb-8955-a8307f657a36" />
+
 
 ## Running it locally
 
