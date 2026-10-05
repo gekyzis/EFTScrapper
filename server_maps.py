@@ -108,16 +108,25 @@ def fandom_get(url, **kwargs):
     return resp
 
 def search_wiki(task_name):
+    """
+    Attempts to search Fandom via MediaWiki API using standard urllib.
+    Falls back gracefully if Cloudflare blocks datacenter IPs.
+    """
     query = urllib.parse.quote(task_name)
     url = f"https://escapefromtarkov.fandom.com/api.php?action=opensearch&search={query}&limit=1&format=json"
+    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
     try:
-        resp = fandom_get(url, timeout=10)
-        data = resp.json()
-        if len(data) >= 4 and len(data[1]) > 0 and len(data[3]) > 0:
-            return data[1][0], data[3][0]
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            if len(data) >= 4 and len(data[1]) > 0 and len(data[3]) > 0:
+                return data[1][0], data[3][0]
     except Exception:
         pass
-    return None, None
+    
+    # Fallback: format name directly to Fandom URL scheme
+    formatted_name = task_name.strip().title().replace(" ", "_")
+    wiki_url = f"https://escapefromtarkov.fandom.com/wiki/{formatted_name}"
+    return task_name, wiki_url
 
 def extract_section(html, section_id):
     pattern = f'id="{section_id}"'
@@ -466,71 +475,92 @@ def get_fandom_interactive_map_url(location_name):
     map_page_name = location_name.strip().replace(" ", "_")
     return f"https://escapefromtarkov.fandom.com/wiki/Map:{map_page_name}"
 
+
 def scrape_wiki_page(url, task_name, location_hint):
+    """
+    Primary strategy: Fetch task details and objectives from json.tarkov.dev 
+    (bypasses Cloudflare block on datacenter IPs).
+    Fallback strategy: Attempt Fandom fetch via fandom_get().
+    """
+    _load_tarkovdev_data()
+    norm_url = _normalize_wikilink(url)
+    
+    objectives = []
+    guide = []
+    location = location_hint or "Any location"
+
+    # Attempt to load objectives directly from json.tarkov.dev
     try:
-        resp = fandom_get(url, timeout=15)
-        if resp.status_code != 200:
-            return {"error": f"Wiki returned HTTP {resp.status_code}."}
+        tasks_doc = _tarkovdev_fetch_json("regular/tasks")
+        tasks_raw = tasks_doc["data"]["tasks"]
+        if isinstance(tasks_raw, dict):
+            tasks_raw = list(tasks_raw.values())
 
-        html_clean = resp.text.replace('\n', ' ')
+        matched_task = None
+        for t in tasks_raw:
+            if _normalize_wikilink(t.get("wikiLink")) == norm_url or \
+               t.get("name", "").lower() == task_name.lower():
+                matched_task = t
+                break
 
-        # Extract objectives/guide FIRST -- these are the only parts of the
-        # page we actually trust as "about this task". The rest of the page
-        # (nav templates, related-quest boxes, footers) can and does mention
-        # unrelated map names, which is what was causing every task to get
-        # misfiled under "Reserve" regardless of its real map.
-        objectives = []
-        obj_html = extract_section(html_clean, "Objectives")
-        for li in re.findall(r'<li[^>]*>(.*?)</li>', obj_html, re.IGNORECASE):
-            clean_li = clean_tags(li)
-            if clean_li: objectives.append(clean_li)
+        if matched_task:
+            for obj in matched_task.get("objectives", []):
+                desc = obj.get("description")
+                if desc and not desc.startswith("task."):
+                    objectives.append(desc)
+                elif obj.get("type"):
+                    objectives.append(f"Objective type: {obj.get('type')}")
+    except Exception as e:
+        print(f"[tarkov.dev fallback] Failed to load objectives: {e}")
 
-        guide = []
-        guide_html = extract_section(html_clean, "Guide")
-        for p in re.findall(r'<p[^>]*>(.*?)</p>', guide_html, re.IGNORECASE):
-            clean_p = clean_tags(p)
-            if clean_p and len(clean_p) > 10: guide.append(clean_p)
-
-        relevant_text = " ".join(objectives + guide)
-
-        location = location_hint or "Any location"
-        if not location_hint or location.lower() == "any location":
-            extracted = None
-            # Pattern A: modern "portable infobox" (data-source attribute)
-            m1 = re.search(r'data-source="location".*?<div[^>]*>(.*?)</div>', html_clean, re.IGNORECASE)
-            if m1:
-                extracted = clean_tags(m1.group(1))
-            # Pattern B: older table-based infobox used on (at least) this
-            # wiki -- confirmed live: <td class="va-infobox-label">Location</td>
-            # <td class="va-infobox-spacing-h"></td><td class="va-infobox-content">VALUE</td>
-            if not extracted:
-                m2 = re.search(
-                    r'va-infobox-label[^>]*>\s*Location\s*<.*?va-infobox-content[^>]*>(.*?)</td>',
-                    html_clean, re.IGNORECASE
-                )
-                if m2:
-                    extracted = clean_tags(m2.group(1))
-            if extracted:
-                location = extracted
-
-        if location.lower() in ["any location", "", "none"]:
-            # Only scan the task's own objective/guide text, not the whole
-            # page -- prevents matching an unrelated map name that happens
-            # to appear in a nav template or "related quests" box elsewhere
-            # on the page.
-            for m in KNOWN_MAPS:
-                if re.search(r'\b' + re.escape(m) + r'\b', relevant_text, re.IGNORECASE):
-                    location = m
-                    break
-
+    # If tarkov.dev had objectives, return them without hitting Fandom HTML
+    if objectives:
         return {
             "location": location,
             "objectives": objectives,
-            "guide": guide,
+            "guide": guide or ["Guide steps available directly on wiki link."],
             "url": url,
         }
-    except Exception as e:
-        return {"error": str(e)}
+
+    # Fallback to direct Fandom HTML scrape if circuit is open/available
+    try:
+        resp = fandom_get(url, timeout=10)
+        if resp.status_code == 200:
+            html_clean = resp.text.replace('\n', ' ')
+
+            obj_html = extract_section(html_clean, "Objectives")
+            for li in re.findall(r'<li[^>]*>(.*?)</li>', obj_html, re.IGNORECASE):
+                clean_li = clean_tags(li)
+                if clean_li: objectives.append(clean_li)
+
+            guide_html = extract_section(html_clean, "Guide")
+            for p in re.findall(r'<p[^>]*>(.*?)</p>', guide_html, re.IGNORECASE):
+                clean_p = clean_tags(p)
+                if clean_p and len(clean_p) > 10: guide.append(clean_p)
+
+            if location.lower() in ["any location", "", "none"]:
+                relevant_text = " ".join(objectives + guide)
+                for m in KNOWN_MAPS:
+                    if re.search(r'\b' + re.escape(m) + r'\b', relevant_text, re.IGNORECASE):
+                        location = m
+                        break
+
+            return {
+                "location": location,
+                "objectives": objectives,
+                "guide": guide,
+                "url": url,
+            }
+    except Exception:
+        pass
+
+    # If both scrapers fail or hit 403, return basic structured data with wiki URL
+    return {
+        "location": location,
+        "objectives": objectives or ["Refer to Wiki for detailed task objectives."],
+        "guide": ["Direct scraping blocked by Wiki Cloudflare protection. Click task link for full guide."],
+        "url": url,
+    }
 
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, fmt, *args): pass
