@@ -1,9 +1,11 @@
 # EFT Task Planner 
 
-A small, self‑contained web app that takes Escape From Tarkov tasks as input 
-— either manually entered by the user or OCR‑extracted from an uploaded image — 
-and displays, on a single page, the task’s objectives, a tactical guide, and its exact in‑raid map location(s), 
-plotted as numbered pins on the actual map image, along with a suggested raid order when multiple tasks are queued at once.
+A compact, standalone web app that lets users input Escape From Tarkov tasks 
+— either manually or via OCR from an uploaded image — 
+and presents each task’s objectives, tactical guidance, and precise in‑raid map locations on a single page. 
+Locations are shown as numbered pins on the actual map, and when multiple tasks are queued, the app suggests an optimal raid order. 
+It made managing my EFT tasks far more efficient by eliminating the time spent figuring out what to do, how to do it, and where to go.
+I hope you find it usefull too.
 
 Data comes from two live sources, fetched server-side on each lookup:
 - the [Escape From Tarkov Fandom wiki](https://escapefromtarkov.fandom.com/wiki/Escape_from_Tarkov_Wiki)
@@ -24,6 +26,7 @@ If you’re hitting 403s, try running it locally. Cloudflare/Fandom often blocks
 
 ## Running it locally
 
+Download server_maps.py & eft-task-guide.html locally, e.g. to Downloads\EFTSCRAPPER. Browse to this folder and run:
 ```bash
 python3 server_maps.py
 ```
@@ -33,16 +36,6 @@ automatically if it isn't already present.
 
 Enter task names (or use "📷 Auto-Read" to OCR them from a screenshot of
 your in-game quest log), queue a few, and click **Generate guidance**.
-
-## Configuration
-
-Both read from environment variables, with sane local defaults:
-
-| Variable | Default     | Purpose                                              |
-|----------|-------------|-------------------------------------------------------|
-| `HOST`   | `localhost` | Set to `0.0.0.0` to accept connections from outside the machine (required on most hosts) |
-| `PORT`   | `8000`      | Most hosting platforms (Railway included) inject this automatically |
-
 
 ## Built-in protections for public/shared use
 
