@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EFT // Task Planner</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#14140f; --bg-grain:#17170f; --panel:#1c1c15; --panel-2:#20201a;
+    --border:#34342a; --border-lite:#2a2a20; --text:#e8e4d5; --text-dim:#9a9684;
+    --text-faint:#6b6858; --amber:#d8a13a; --amber-dim:#8a6a2c; --cyan:#5fb3b3;
+    --red:#c24f4f; --green:#7a9a4a;
+    --mono: 'JetBrains Mono', ui-monospace, 'Courier New', monospace;
+    --sans: 'Inter', system-ui, -apple-system, sans-serif;
+    --radius: 3px;
+  }
+  *{ box-sizing:border-box; }
+  body{
+    margin:0; padding:0; background: var(--bg);
+    color:var(--text); font-family:var(--sans); min-height:100vh; line-height:1.5;
+  }
+  a{ color:var(--cyan); }
+  
+  .hud{
+    position:sticky; top:0; z-index:50; background:rgba(20,20,15,0.94);
+    backdrop-filter:blur(6px); border-bottom:1px solid var(--border); padding:14px 18px 16px;
+  }
+  .hud-inner{ max-width:920px; margin:0 auto; }
+  .brand{ display:flex; align-items:baseline; gap:10px; margin-bottom:12px; }
+  .brand h1{ font-family:var(--mono); font-weight:800; font-size:1.15rem; margin:0; }
+  .brand h1 .slash{ color:var(--amber); }
+  .brand .tag{ font-family:var(--mono); font-size:0.68rem; color:var(--text-faint); border:1px solid var(--border); padding:2px 6px; }
+  .brand .status{ margin-left:auto; font-family:var(--mono); font-size:0.7rem; color:var(--green); }
+  
+  .search-box{
+    display:flex; gap:8px; align-items:center; background:var(--panel);
+    border:1px solid var(--border); border-radius:var(--radius); padding:9px 12px;
+  }
+  .search-box .glyph{ color:var(--amber); font-family:var(--mono); }
+  .search-box input{
+    flex:1; background:transparent; border:none; outline:none;
+    color:var(--text); font-family:var(--sans); font-size:0.92rem;
+  }
+  .search-box .kbd{ font-family:var(--mono); font-size:0.65rem; color:var(--text-faint); border:1px solid var(--border); padding:1px 5px; }
+  
+  .queue-row{ display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; align-items:center; }
+  .chip{
+    display:inline-flex; align-items:center; gap:6px; background:var(--panel-2);
+    border:1px solid var(--border); border-radius:20px; padding:5px 6px 5px 12px; font-size:0.8rem;
+  }
+  .chip button{ background:none; border:none; color:var(--text-faint); cursor:pointer; font-family:var(--mono); font-size:0.85rem; padding:3px 6px; border-radius:50%; }
+  .chip button:hover{ color:var(--red); background:rgba(194,79,79,0.12); }
+  
+  .go-btn{
+    font-family:var(--mono); font-weight:700; font-size:0.78rem; letter-spacing:0.03em;
+    background:var(--amber); color:#14140f; border:none; border-radius:var(--radius);
+    padding:7px 14px; cursor:pointer; text-transform:uppercase;
+  }
+  .go-btn:hover{ background:#e8b552; }
+  .go-btn:disabled{ background:var(--border); color:var(--text-faint); cursor:not-allowed; }
+  
+  main{ max-width:920px; margin:0 auto; padding:20px 18px 80px; }
+  
+  .empty-state{ text-align:center; padding:60px 20px; color:var(--text-faint); border:1px dashed var(--border); margin-top:10px; }
+  .empty-state .big{ font-family:var(--mono); font-size:0.95rem; color:var(--text-dim); margin-bottom:6px; }
+  
+  .card{
+    background:var(--panel); border:1px solid var(--border); border-radius:var(--radius);
+    margin-top:16px; padding:18px; position:relative;
+  }
+  .card-head h2{ font-family:var(--mono); font-size:1.02rem; margin:0 0 10px; color:var(--text); }
+  
+  .strategy-card{ border-color:var(--cyan); }
+  .strategy-card h2{ color:var(--cyan); }
+  .sector{ margin-bottom:14px; }
+  .sector h3{ font-family:var(--mono); font-size:0.85rem; color:var(--text); margin:0 0 5px; }
+  .synergy{
+    background:rgba(216,161,58,0.1); border:1px solid var(--amber-dim);
+    color:var(--amber); padding:8px 12px; border-radius:var(--radius); margin-top:8px; font-size:0.85rem;
+  }
+  
+  .objective{ display:flex; gap:10px; align-items:flex-start; padding:5px 0; }
+  .stamp{ flex-shrink:0; width:16px; height:16px; margin-top:2px; border:1.5px solid var(--text-faint); display:flex; align-items:center; justify-content:center; background:none; color:transparent; font-size:0.7rem; font-family:var(--mono); cursor:pointer;}
+  .stamp.done{ border-color:var(--green); color:var(--green); background:rgba(122,154,74,0.12); }
+  .obj-text{ font-size:0.87rem; }
+  .obj-text.done{ color:var(--text-faint); text-decoration:line-through; }
+  
+  .guide-section{ margin-top:16px; padding-top:12px; border-top:1px dashed var(--border-lite); }
+  .guide-section .label{ font-family:var(--mono); font-size:0.7rem; color:var(--text-faint); text-transform:uppercase; margin-bottom:8px;}
+  .guide-section p{ font-size:0.85rem; color:var(--text-dim); margin:0 0 8px 0; }
+  
+  .card-footer{ margin-top:16px; padding-top:12px; border-top:1px solid var(--border-lite); }
+  .foot-link{ font-family:var(--mono); font-size:0.72rem; color:var(--text-faint); text-decoration:none; }
+  .foot-link:hover{ color:var(--amber); }
+  
+  .upload-btn {
+    background: var(--panel-2); border: 1px solid var(--border); color: var(--text);
+    font-family: var(--mono); font-size: 0.7rem; padding: 4px 8px; border-radius: var(--radius);
+    cursor: pointer; display: flex; align-items: center; gap: 4px;
+  }
+  .upload-btn:hover { border-color: var(--cyan); color: var(--cyan); }
+  
+
+  .map-controls {
+    display: flex; gap: 8px; margin-top: 8px; align-items: center; font-size: 0.75rem; font-family: var(--mono);
+  }
+  .map-btn {
+    background: var(--panel-2); border: 1px solid var(--border); color: var(--text);
+    padding: 4px 8px; border-radius: var(--radius); cursor: pointer;
+  }
+  .map-btn:hover { border-color: var(--cyan); color: var(--cyan); }
+
+  /* ----- PIN STYLES ------------------------------------------------------- */
+  .pin{
+	  width:22px; height:22px; border-radius:50%;
+	  cursor:pointer;
+	  border:2px solid #14140f; box-shadow:0 1px 4px rgba(0,0,0,.6);
+	  transform:translate(-50%,-100%);
+	  position:absolute;
+	  display:flex;            /* NEW: allow flex centering */
+	  justify-content:center;  /* NEW: center horizontally */
+	  align-items:center;      /* NEW: center vertically */
+	}
+  .pin:hover{
+    transform:translate(-50%,-110%); /* lift on hover */
+  }
+
+  /* ----- PIN MODAL ------------------------------------------------------- */
+  .pin-modal{
+    position:fixed;
+    top:20%;
+    left:50%;
+    transform:translateX(-50%);
+    background:var(--panel);
+    color:var(--text);
+    padding:12px 16px;
+    border-radius:var(--radius);
+    box-shadow:0 4px 10px rgba(0,0,0,.5);
+    z-index:2000;
+    display:none;
+  }
+  .pin-modal .close{
+    cursor:pointer;
+    float:right;
+    font-size:0.8rem;
+    font-weight:600;
+    margin-left:8px;
+  }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+</head>
+<body>
+
+<div class="hud">
+  <div class="hud-inner">
+    <div class="brand">
+      <h1>EFT<span class="slash">//</span>PLANNER</h1>
+      <span class="tag">wiki scraper</span>
+      <span class="status ok" id="statusLine">● Ready</span>
+    </div>
+    <div class="search-row">
+      <div class="search-box">
+        <span class="glyph">▣</span>
+        <input id="searchInput" type="text" placeholder="Type task name... or auto-read screenshot ➔" autocomplete="off">
+        <input type="file" id="imageInput" accept="image/*" hidden>
+        <button id="uploadBtn" class="upload-btn">📷 Auto-Read</button>
+        <span class="kbd">↵</span>
+      </div>
+    </div>
+    <div class="queue-row" id="queueRow" hidden>
+      <div id="chips" style="display:flex; flex-wrap:wrap; gap:8px;"></div>
+      <button class="go-btn" id="goBtn">Generate guidance</button>
+    </div>
+  </div>
+</div>
+
+<main>
+  <div class="empty-state" id="emptyState">
+    <div class="big">NO TASKS LOADED</div>
+    <div class="small">Enter task names above to pull live requirements and tactical guides directly from the Wiki. A combined map strategy will be generated for efficient routing.</div>
+  </div>
+  <div id="cards"></div>
+</main>
+
+<!-- PIN MODAL -->
+<div id="pin-modal" class="pin-modal">
+  <div class="close">✕</div>
+  <div id="pin-modal-content"></div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  var CHECK_KEY = "eft-dossier-checked-v2";
+  var state = { queue: [], rendered: {}, checked: {} };
+  var mapData = {}; // will hold the full results from the API
+
+  try {
+    var stored = localStorage.getItem(CHECK_KEY);
+    if (stored) state.checked = JSON.parse(stored);
+  } catch (e) {}
+
+  function saveChecked(){
+    try { localStorage.setItem(CHECK_KEY, JSON.stringify(state.checked)); } catch(e) {}
+  }
+
+  function setStatus(text, kind){
+    var statusLine = document.getElementById("statusLine");
+    if (statusLine) {
+      statusLine.textContent = text;
+      statusLine.className = "status " + (kind || "");
+    }
+  }
+
+  function escapeHtml(s){
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function(c){
+      return { "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c];
+    });
+  }
+
+  var els = {
+    searchInput: document.getElementById("searchInput"),
+    imageInput: document.getElementById("imageInput"),
+    uploadBtn: document.getElementById("uploadBtn"),
+    queueRow: document.getElementById("queueRow"),
+    chips: document.getElementById("chips"),
+    goBtn: document.getElementById("goBtn"),
+    emptyState: document.getElementById("emptyState"),
+    cards: document.getElementById("cards")
+  };
+
+  els.searchInput.addEventListener("keydown", function(e){
+    if (e.key === "Enter"){
+      e.preventDefault();
+      var q = els.searchInput.value.trim();
+      if (q) {
+        var lower = q.toLowerCase();
+        if (!state.queue.map(n => (n.name||n).toLowerCase()).includes(lower) && !state.rendered[lower]) {
+            state.queue.push(q);
+            renderQueue();
+        }
+        els.searchInput.value = "";
+      }
+    }
+  });
+
+  function renderQueue(){
+    els.chips.innerHTML = state.queue.map(function(item, i){
+      var name = item.name || item;
+      var mapText = item.map ? ' <span style="font-size:0.65rem; color:var(--cyan)">(' + escapeHtml(item.map) + ')</span>' : '';
+      return '<span class="chip">' + escapeHtml(name) + mapText + '<button data-idx="' + i + '">×</button></span>';
+    }).join("");
+    els.queueRow.hidden = (state.queue.length === 0);
+  }
+
+  els.goBtn.addEventListener("click", function(){
+    var toRender = state.queue.slice();
+    if (!toRender.length) return;
+    
+    els.goBtn.disabled = true;
+    els.goBtn.textContent = "Scraping Wiki & Maps...";
+    
+    fetch("/api/generate", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({tasks: toRender})
+    })
+    .then(r => r.json())
+    .then(data => {
+      els.goBtn.disabled = false;
+      els.goBtn.textContent = "Generate guidance";
+      state.queue = [];
+      renderQueue();
+      mapData = data;          // keep the full response for pin handling
+      renderDossiers(data);
+    })
+    .catch(err => {
+      els.goBtn.disabled = false;
+      els.goBtn.textContent = "Generate guidance";
+      alert("Error reaching local API: " + err);
+    });
+  });
+
+  els.uploadBtn.addEventListener("click", function() {
+    els.imageInput.click();
+  });
+
+  els.imageInput.addEventListener("change", function(e) {
+    var file = e.target.files[0];
+    if (!file) return;
+
+    setStatus("extracting tasks & map from screenshot...", "loading");
+
+    Tesseract.recognize(file, 'eng', {}).then(function(result) {
+      var text = result.data.text;
+      setStatus("● Ready", "ok");
+
+      var lines = text.split('\n');
+
+      lines.forEach(function(line) {
+        var cleanLine = line.replace(/^[-_.\\s]+/, '').trim();
+        if (cleanLine.length > 3) {
+          var taskName = cleanLine;
+
+          if (taskName.length > 2) {
+            var lower = taskName.toLowerCase();
+            var exists = state.queue.some(function(item) { return (item.name||item).toLowerCase() === lower; });
+            if (!exists && !state.rendered[lower]) {
+              state.queue.push({ name: taskName, map: null });
+            }
+          }
+        }
+      });
+      
+      renderQueue();
+      els.imageInput.value = "";
+    }).catch(function(err) {
+      setStatus("OCR Failed", "err");
+      console.error(err);
+    });
+  });
+
+  els.chips.addEventListener("click", function(e){
+    if (e.target.tagName === "BUTTON") {
+      var idx = parseInt(e.target.getAttribute("data-idx"), 10);
+      if (!isNaN(idx)) {
+        state.queue.splice(idx, 1);
+        renderQueue();
+      }
+    }
+  });
+
+  /* --------------------------------------------------------------------- */
+  /*  Render dossiers, maps and pins                                      */
+  /* --------------------------------------------------------------------- */
+  function renderDossiers(data) {
+    els.emptyState.hidden = true;
+    var byMap = {};              // mapName -> {tasks:[...], url, source, slug}
+    var anyLocationTasks = [];
+    var hasValid = false;
+
+    function getTaskSlug(name) {
+      return name.toLowerCase().replace(/[^a-z0-9]/g, '-');
+    }
+
+    Object.keys(data).forEach(function(k){
+       var t = data[k];
+       if (t.error) {
+           els.cards.innerHTML = '<div class="card"><div class="card-head"><h2>' + escapeHtml(k) + '</h2></div><div style="color:var(--red); font-size:0.85rem;">' + escapeHtml(t.error) + '</div></div>' + els.cards.innerHTML;
+           return;
+       }
+       hasValid = true;
+       state.rendered[t.name.toLowerCase()] = true;
+
+       var maps = (t.maps && t.maps.length) ? t.maps : null;
+       if (!maps) {
+         anyLocationTasks.push(t);
+         return;
+       }
+       maps.forEach(function(m){
+         if (!byMap[m.name]) byMap[m.name] = { tasks: [], url: m.url, source: m.source, slug: m.slug };
+         byMap[m.name].tasks.push(t);
+       });
+    });
+
+    if (!hasValid) return;
+
+    // ----------------- Task styles ------------------------------------
+    var MARKER_PALETTE = [
+      "#e6194b", "#3cb44b", "#4363d8", "#f58231", "#911eb4",
+      "#42d4f4", "#f032e6", "#469990", "#9A6324", "#800000",
+      "#808000", "#000075", "#a9a9a9", "#ffe119", "#bfef45", "#fabed4"
+    ];
+    var taskStyle = {};
+    (function(){
+      var idx = 0;
+      Object.keys(data).forEach(function(k){
+        var t = data[k];
+        if (t && !t.error) {
+          taskStyle[t.name] = { color: MARKER_PALETTE[idx % MARKER_PALETTE.length], num: idx + 1 };
+          idx++;
+        }
+      });
+    })();
+
+    // ---- Raid plan ----------------------------------------------------
+    var mapNames = Object.keys(byMap);
+    mapNames.sort(function(a, b){ return byMap[b].tasks.length - byMap[a].tasks.length; });
+
+    var planHtml = '<div class="card strategy-card"><div class="card-head"><h2>🗺️ Raid Plan &amp; Map Guidance</h2></div>';
+    if (mapNames.length) {
+      planHtml += '<div style="font-family:var(--mono); font-size:0.7rem; letter-spacing:0.05em; text-transform:uppercase; color:var(--text-dim); margin:12px 0 4px;">Recommended raid order</div>';
+      planHtml += '<div style="font-size:0.8rem; color:var(--text-dim); margin-bottom:10px;">EFT raids are separate, disconnected instances per map -- there\'s no single walkable route between them. ' +
+        'This orders your <em>next raids</em> by how many pending objectives each one clears, so you make the most progress per trip.</div>';
+      planHtml += '<ol style="padding-left:20px; font-size:0.88rem;">';
+      mapNames.forEach(function(m){
+        var entry = byMap[m];
+        planHtml += '<li style="margin-bottom:4px;"><strong>' + escapeHtml(m) + '</strong> — ' + entry.tasks.length + ' objective' + (entry.tasks.length>1?'s':'') +
+          ' pending <a href="' + escapeHtml(entry.url) + '" target="_blank" rel="noopener" style="margin-left:6px; font-size:0.75rem; color:var(--cyan);">view map ↗</a></li>';
+      });
+      planHtml += '</ol>';
+    }
+    if (anyLocationTasks.length) {
+      planHtml += '<div style="font-family:var(--mono); font-size:0.7rem; letter-spacing:0.05em; text-transform:uppercase; color:var(--text-dim); margin:12px 0 4px;">No raid needed</div>';
+      planHtml += '<div style="font-size:0.8rem; color:var(--text-dim); margin-bottom:8px;">Hand-in / trader tasks -- complete these whenever, no specific map involved:</div>';
+      planHtml += '<ul style="padding-left:20px; font-size:0.85rem;">';
+      anyLocationTasks.forEach(function(t){
+        planHtml += '<li><a href="#task-card-' + getTaskSlug(t.name) + '" style="color:var(--cyan); text-decoration:none;">' + escapeHtml(t.name) + '</a></li>';
+      });
+      planHtml += '</ul>';
+    }
+    planHtml += '</div>';
+
+    // ---- Map sections -------------------------------------------------
+    var mapSectionsHtml = '';
+    mapNames.forEach(function(m){
+      var entry = byMap[m];
+
+      // Gather every pin for this map, from every task in this group.
+      var pinsHere = [];
+      var svgUrl = null;
+      entry.tasks.forEach(function(t){
+        (t.pins || []).forEach(function(p){
+          if (p.slug !== entry.slug) return;
+          if (!svgUrl) svgUrl = p.svg;
+          var style = taskStyle[t.name] || { color: "#d8a13a", num: "?" };
+          pinsHere.push({ fracX: p.fracX, fracY: p.fracY, taskName: t.name, color: style.color, num: style.num, objective_type: p.objective_type });
+        });
+      });
+
+      mapSectionsHtml += '<div class="card"><div class="card-head" style="display:flex; align-items:center; justify-content:space-between;"><h2>📍 ' + escapeHtml(m) + ' (' + entry.tasks.length + ' task' + (entry.tasks.length>1?'s':'') + ')</h2>' +
+        '<a href="' + escapeHtml(entry.url) + '" target="_blank" rel="noopener" style="font-size:0.75rem; background:var(--panel-2); border:1px solid var(--border); padding:2px 8px; border-radius:3px; text-decoration:none; color:var(--cyan);">' +
+        (entry.source === 'tarkovdev' ? '🗺️ View on tarkov.dev ↗' : '📖 View on wiki ↗') + '</a></div>';
+
+      if (svgUrl && pinsHere.length) {
+        mapSectionsHtml += '<div style="position:relative; width:100%; margin:10px 0; border:1px solid var(--border); border-radius:4px; overflow:hidden; background:#0d0d0a; line-height:0;">';
+        mapSectionsHtml += '<img src="' + escapeHtml(svgUrl) + '" alt="' + escapeHtml(m) + ' map" style="width:100%; height:auto; display:block;" loading="lazy">';
+        pinsHere.forEach(function(p){
+          mapSectionsHtml += '<div title="' + escapeHtml(p.num + '. ' + p.taskName) + '" class="pin" style="left:' + (p.fracX*100).toFixed(2) + '%; top:' + (p.fracY*100).toFixed(2) + '%; background:' + p.color + ';"' +
+            ' data-task="' + escapeHtml(p.taskName) + '"' +
+            ' data-objective="' + escapeHtml(p.objective_type) + '"> ' +
+            '<span style="transform:rotate(45deg); color:#14140f; font-family:var(--mono); font-size:0.68rem; font-weight:800;">' + p.num + '</span>' +
+            '</div>';
+        });
+        mapSectionsHtml += '</div>';
+      } else {
+        mapSectionsHtml += '<div style="font-size:0.75rem; color:var(--text-faint); margin:8px 0; font-style:italic;">' +
+          'No task below has a precise in‑raid spot (these objectives are general‑area, trader‑related, or not yet mapped) -- use the map link above for a manual look.</div>';
+      }
+
+      mapSectionsHtml += '<ul style="margin:8px 0 0; padding-left:20px; font-size:0.85rem;">';
+      entry.tasks.forEach(function(t){
+        var taskAnchor = '#task-card-' + getTaskSlug(t.name);
+        var objText = t.objectives[0] || "";
+        var style = taskStyle[t.name] || { color: "#d8a13a", num: "?" };
+        var hasPinHere = (t.pins || []).some(function(p){ return p.slug === entry.slug; });
+        var swatch = hasPinHere ?
+          '<span style="display:inline-flex; align-items:center; justify-content:center; width:15px; height:15px; border-radius:50%; background:' + style.color + '; color:#14140f; font-family:var(--mono); font-size:0.6rem; font-weight:700; margin-right:6px; flex-shrink:0;">' + style.num + '</span>' : '';
+        var noPinReason = '';
+        if (!hasPinHere) {
+          if (t.map_match_status === 'matched_no_zone_data') {
+            noPinReason = ' <span style="font-size:0.68rem; color:var(--text-faint);">(no exact in‑raid spot for this objective type)</span>';
+          } else if (t.map_match_status === 'not_matched_in_tarkovdev' || t.map_match_status === 'pin_lookup_error') {
+            noPinReason = ' <span style="font-size:0.68rem; color:var(--amber);">(not matched to tarkov.dev\'s data -- map detected from wiki text only)</span>';
+          }
+        }
+        mapSectionsHtml += '<li style="margin-bottom:6px; list-style:' + (hasPinHere ? 'none' : 'disc') + '; display:flex; align-items:flex-start;">' + swatch + '<span><a href="' + taskAnchor + '" style="color:var(--cyan); text-decoration:none;"><strong>' + escapeHtml(t.name) + '</strong></a>: ' + escapeHtml(objText) + noPinReason + '</span></li>';
+      });
+      mapSectionsHtml += '</ul></div>';
+    });
+
+    els.cards.innerHTML = planHtml + mapSectionsHtml + els.cards.innerHTML;
+
+    // ---- Individual task cards ---------------------------------------
+    Object.keys(data).forEach(function(k){
+       var t = data[k];
+       if(t.error) return;
+
+       var cardId = 'task-card-' + getTaskSlug(t.name);
+
+       var objHtml = t.objectives.map(function(obj, i){
+           var objKey = t.name + "-obj-" + i;
+           var isDone = !!state.checked[objKey];
+           return '<div class="objective">' +
+             '<button class="stamp' + (isDone ? " done" : "") + '" data-key="' + objKey + '">' + (isDone ? "✓" : "") + '</button>' +
+             '<div><div class="obj-text' + (isDone ? " done" : "") + '">' + escapeHtml(obj) + '</div></div></div>';
+       }).join("");
+
+       var guideHtml = '<div class="guide-section"><div class="label">Tactical Guide</div>';
+       if (t.guide && t.guide.length) {
+           t.guide.forEach(function(p){ guideHtml += '<p>' + escapeHtml(p) + '</p>'; });
+       } else {
+           guideHtml += '<p><em>No detailed guide found.</em></p>';
+       }
+       guideHtml += '</div>';
+
+       var mapsLine = (t.maps && t.maps.length) ?
+         t.maps.map(function(m){ return escapeHtml(m.name) + ' (<a href="' + escapeHtml(m.url) + '" target="_blank" rel="noopener" style="color:var(--cyan);">map ↗</a>)'; }).join(', ') :
+         'Any location';
+
+       var card = '<div class="card" id="' + cardId + '">';
+       card += '<div class="card-head"><h2>' + escapeHtml(t.name) + '</h2></div>';
+       card += '<div style="margin-bottom:12px; font-size:0.7rem; font-family:var(--mono); color:var(--text-dim);">LOCATION: ' + mapsLine + '</div>';
+       if (t.note) {
+         card += '<div style="background:rgba(216,161,58,0.1); border:1px solid var(--amber-dim); color:var(--amber); padding:8px 12px; border-radius:6px; margin-bottom:12px; font-size:0.78rem;">⚠ ' + escapeHtml(t.note) + '</div>';
+       }
+       card += objHtml + guideHtml;
+       card += '<div class="card-footer">' + (t.url ?
+         '<a class="foot-link" href="' + escapeHtml(t.url) + '" target="_blank">Read full article on Wiki ↗</a>' :
+         '<span class="foot-link" style="opacity:0.6;">Wiki article link unavailable right now</span>') + '</div>';
+       card += '</div>';
+
+       els.cards.innerHTML += card;
+    });
+  }
+
+  /* --------------------------------------------------------------------- */
+  /*  Pin modal handling                                                   */
+  /* --------------------------------------------------------------------- */
+  var modal = document.getElementById('pin-modal');
+  var modalContent = document.getElementById('pin-modal-content');
+
+  document.addEventListener('click', function(e){
+	  const pin = e.target.closest('.pin');
+	  if (!pin) return;
+
+	  const taskName = pin.dataset.task;          // e.g. “Surplus Goods”
+	  const objective = pin.dataset.objective;    // e.g. “findQuestItem”
+
+	  // 1️⃣ Show a short pop‑up
+	  modalContent.innerHTML = `<strong>${escapeHtml(taskName)}</strong><br>${escapeHtml(objective)}`;
+	  modal.style.display = 'block';
+
+	  // 2️⃣ After 1 s, jump to the card that contains the full task details
+	  setTimeout(() => {
+		modal.style.display = 'none';
+		const anchor = '#task-card-' + taskName.toLowerCase().replace(/[^a-z0-9]/g, '-');
+		window.location.hash = anchor;
+		// Optional: scroll a little above the card for a nicer view
+		setTimeout(() => {
+		  const el = document.querySelector(anchor);
+		  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+		}, 50);
+	  }, 1000);
+	});
+
+  /* --------------------------------------------------------------------- */
+  /*  Stamp handling (task progress)                                       */
+  /* --------------------------------------------------------------------- */
+  els.cards.addEventListener("click", function(e){
+    var stamp = e.target.closest(".stamp");
+    if (stamp){
+      var key = stamp.getAttribute("data-key");
+      state.checked[key] = !state.checked[key];
+      saveChecked();
+      stamp.classList.toggle("done", !!state.checked[key]);
+      stamp.textContent = state.checked[key] ? "✓" : "";
+      var textEl = stamp.parentElement.querySelector(".obj-text");
+      if (textEl) textEl.classList.toggle("done", !!state.checked[key]);
+    }
+  });
+
+})();
+</script>
+</body>
+</html>
